@@ -2,9 +2,13 @@ package aibot
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 )
+
+// ErrReplySkipped 非阻塞流式回复被跳过（上一条同 reqId 消息仍在等待 ack）
+var ErrReplySkipped = errors.New("reply skipped: previous message still pending ack")
 
 // ============================================================================
 // 事件回调类型定义
@@ -416,6 +420,27 @@ func (c *WSClient) Reply(frame *WsFrame, body interface{}, cmd string) (*WsFrame
 	}
 
 	return c.wsManager.SendReply(reqID, body, cmd)
+}
+
+// HasPendingReplyAck 检查指定消息帧是否有未完成的 ack
+//
+// 用于流式场景：调用方可据此决定是否跳过当前中间帧，避免排队积压。
+func (c *WSClient) HasPendingReplyAck(frame *WsFrame) bool {
+	reqID := frame.Headers.ReqID
+	return c.wsManager.hasPendingAck(reqID)
+}
+
+// ReplyStreamNonBlocking 非阻塞流式文本回复
+//
+// 如果上一条同 reqId 的消息尚未收到 ack，则跳过本次发送（返回 ErrReplySkipped），
+// 避免流式中间帧排队积压导致延迟。
+//
+// 注意：finish=true 的最终帧不受此限制，始终保证发送（走正常队列）。
+func (c *WSClient) ReplyStreamNonBlocking(frame *WsFrame, streamID, content string, finish bool, msgItem []ReplyMsgItem, feedback *ReplyFeedback) (*WsFrame, error) {
+	if !finish && c.HasPendingReplyAck(frame) {
+		return nil, ErrReplySkipped
+	}
+	return c.ReplyStream(frame, streamID, content, finish, msgItem, feedback)
 }
 
 // ReplyStream 发送流式文本回复（便捷方法）

@@ -69,15 +69,7 @@ func DecryptFile(encryptedData []byte, aesKey string) ([]byte, error) {
 	return plaintext, nil
 }
 
-// pkcs7Unpadding 移除 PKCS#7 填充
+// pkcs7Unpadding 移除 PKCS#7 填充（内部复用 PKCS7Unpad）
 func pkcs7Unpadding(plaintext []byte, blockSize int) ([]byte, error) {
-	plaintextLen := len(plaintext)
-	if plaintextLen == 0 {
-		return nil, errors.New("pkcs7Unpadding error: nil or zero")
-	}
-	if plaintextLen%blockSize != 0 {
-		return nil, errors.New("pkcs7Unpadding text not a multiple of the block size")
-	}
-	paddingLen := int(plaintext[plaintextLen-1])
-	return plaintext[:plaintextLen-paddingLen], nil
+	return PKCS7Unpad(plaintext, blockSize)
 }

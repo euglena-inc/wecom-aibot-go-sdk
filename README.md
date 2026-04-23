@@ -117,6 +117,7 @@ func main() {
 | `HeartbeatInterval` | `int` | — | `30000` | 心跳间隔（毫秒） |
 | `RequestTimeout` | `int` | — | `10000` | HTTP 请求超时时间（毫秒） |
 | `WSURL` | `string` | — | `wss://openws.work.weixin.qq.com` | 自定义 WebSocket 连接地址 |
+| `WsDialer` | `*websocket.Dialer` | — | `nil` | 自定义 WebSocket Dialer（如 TLS 配置等） |
 | `Logger` | `Logger` | — | `DefaultLogger` | 自定义日志实例 |
 
 ## API 文档
@@ -143,6 +144,8 @@ client := aibot.NewWSClient(options aibot.WSClientOptions)
 | `ReplyWelcome(frame, body)` | 发送欢迎语回复（支持文本或模板卡片），需在收到事件 5s 内调用 | `(*WsFrame, error)` |
 | `ReplyTemplateCard(frame, templateCard, feedback)` | 回复模板卡片消息 | `(*WsFrame, error)` |
 | `ReplyStreamWithCard(frame, streamID, content, finish, options)` | 发送流式消息 + 模板卡片组合回复 | `(*WsFrame, error)` |
+| `ReplyStreamNonBlocking(frame, streamID, content, finish, msgItem, feedback)` | 非阻塞流式回复：若上一条同 reqId 未 ack 则跳过 | `(*WsFrame, error)` |
+| `HasPendingReplyAck(frame)` | 检查指定帧是否有未完成的 ack | `bool` |
 | `UpdateTemplateCard(frame, templateCard, userIDs)` | 更新模板卡片（响应 template_card_event），需在收到事件 5s 内调用 | `(*WsFrame, error)` |
 | `SendMessage(chatID, body)` | 主动发送消息（支持 Markdown 或模板卡片），无需依赖回调帧 | `(*WsFrame, error)` |
 | `SendMarkdown(chatID, content)` | 主动发送 Markdown 消息 | `(*WsFrame, error)` |
@@ -227,6 +230,7 @@ client.OnMessageImage(func(frame *aibot.WsFrame) {
 | `OnMessageMixed` | `frame: *WsFrame` | 收到图文混排消息 |
 | `OnMessageVoice` | `frame: *WsFrame` | 收到语音消息 |
 | `OnMessageFile` | `frame: *WsFrame` | 收到文件消息 |
+| `OnMessageVideo` | `frame: *WsFrame` | 收到视频消息 |
 | `OnEvent` | `frame: *WsFrame` | 收到事件回调（所有事件类型） |
 | `OnEventEnterChat` | `frame: *WsFrame` | 收到进入会话事件（用户当天首次进入单聊会话） |
 | `OnEventTemplateCardEvent` | `frame: *WsFrame` | 收到模板卡片事件（用户点击卡片按钮） |
@@ -312,6 +316,75 @@ client := aibot.NewWSClient(aibot.WSClientOptions{
 | `CreateMarkdownReplyBody(content)` | 创建 Markdown 回复消息体 |
 | `CreateWelcomeReplyBody(content)` | 创建欢迎语回复消息体 |
 | `CreateStreamReplyBody(streamID, content, finish, msgItem, feedback)` | 创建流式回复消息体 |
+
+### 非阻塞流式回复
+
+在流式生成场景中，如果逐 token 调用 `ReplyStream`，可能因上一条消息还没收到 ack 而排队积压。使用 `ReplyStreamNonBlocking` 可在 ack 未返回时直接跳过中间帧，避免延迟：
+
+```go
+client.OnMessageText(func(frame *aibot.WsFrame) {
+	streamID := aibot.GenerateReqId("stream")
+
+	// 模拟流式生成，逐段推送
+	for _, chunk := range []string{"你好", "，", "世界", "！"} {
+		_, err := client.ReplyStreamNonBlocking(frame, streamID, chunk, false, nil, nil)
+		if errors.Is(err, aibot.ErrReplySkipped) {
+			// 上一条还没 ack，跳过本次中间帧
+			continue
+		}
+		if err != nil {
+			fmt.Println("发送失败:", err)
+			return
+		}
+	}
+
+	// 最终帧必须发送（finish=true 不受限制）
+	_, _ = client.ReplyStream(frame, streamID, "你好，世界！", true, nil, nil)
+})
+```
+
+### WecomCrypto 加解密模块
+
+SDK 内置了独立的企业微信消息加解密模块，支持 AES-256-CBC 加密/解密和 SHA1 签名：
+
+```go
+import (
+	"errors"
+	aibot "github.com/go-sphere/wecom-aibot-go-sdk/aibot"
+)
+
+// 创建实例
+crypto, err := aibot.NewWecomCrypto("<token>", "<encodingAESKey>", "<corpId/botId>")
+if err != nil {
+	panic(err)
+}
+
+// 加密
+encrypt, signature, err := crypto.Encrypt(`{"hello":"world"}`, "1234567890", "nonce123")
+if err != nil {
+	panic(err)
+}
+
+// 验证签名
+if !crypto.VerifySignature(signature, "1234567890", "nonce123", encrypt) {
+	panic("签名验证失败")
+}
+
+// 解密
+decrypted, err := crypto.Decrypt(encrypt)
+if err != nil {
+	panic(err)
+}
+fmt.Println(decrypted) // {"hello":"world"}
+```
+
+### 工具函数
+
+| 函数 | 说明 |
+| --- | --- |
+| `DecodeEncodingAESKey(encodingAESKey)` | 解码企业微信 EncodingAESKey |
+| `PKCS7Pad(data, blockSize)` | PKCS#7 填充 |
+| `PKCS7Unpad(data, blockSize)` | PKCS#7 解除填充 |
 
 ## 项目结构
 

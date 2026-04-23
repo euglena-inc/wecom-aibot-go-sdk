@@ -226,6 +226,33 @@ func main() {
 		}
 	})
 
+	// 视频消息
+	client.OnMessageVideo(func(frame *aibot.WsFrame) {
+		var msg aibot.VideoMessage
+		if err := aibot.ParseMessageBody(frame, &msg); err != nil {
+			fmt.Println("解析消息失败:", err.Error())
+			return
+		}
+		fmt.Printf("收到视频: %s\n", msg.Video.URL)
+
+		data, filename, err := client.DownloadFile(msg.Video.URL, msg.Video.AesKey)
+		if err != nil {
+			fmt.Println("下载视频失败:", err.Error())
+			return
+		}
+
+		if filename == "" {
+			filename = "video.mp4"
+		}
+		tmpDir, _ := os.MkdirTemp("", "wecom-")
+		tmpPath := filepath.Join(tmpDir, filename)
+		if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+			fmt.Println("保存文件失败:", err.Error())
+		} else {
+			fmt.Printf("视频已保存: %s (%d bytes)\n", tmpPath, len(data))
+		}
+	})
+
 	// 文件消息
 	client.OnMessageFile(func(frame *aibot.WsFrame) {
 		var msg aibot.FileMessage
