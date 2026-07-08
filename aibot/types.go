@@ -45,12 +45,16 @@ var WsCmd = struct {
 type MessageType string
 
 const (
-	MessageTypeText  MessageType = "text"
-	MessageTypeImage MessageType = "image"
-	MessageTypeMixed MessageType = "mixed"
-	MessageTypeVoice MessageType = "voice"
-	MessageTypeFile  MessageType = "file"
-	MessageTypeVideo MessageType = "video"
+	MessageTypeText                   MessageType = "text"
+	MessageTypeImage                  MessageType = "image"
+	MessageTypeMixed                  MessageType = "mixed"
+	MessageTypeVoice                  MessageType = "voice"
+	MessageTypeFile                   MessageType = "file"
+	MessageTypeVideo                  MessageType = "video"
+	MessageTypeMarkdown               MessageType = "markdown"
+	MessageTypeTemplateCard           MessageType = "template_card"
+	MessageTypeStream                 MessageType = "stream"
+	MessageTypeStreamWithTemplateCard MessageType = "stream_with_template_card"
 )
 
 // TemplateCardType 卡片类型枚举

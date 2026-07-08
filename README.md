@@ -2,7 +2,7 @@
 
 企业微信智能机器人 Go SDK —— 基于 WebSocket 长连接通道，提供消息收发、流式回复、模板卡片、事件回调、文件下载解密等核心能力。
 
-> **关于本项目**: 此项目是官方 [wecomteam/aibot-node-sdk](https://github.com/WecomTeam/aibot-node-sdk) 的 Go 语言复刻版本，会保持与官方 Node.js SDK 同步更新。
+> **关于本项目**: 此项目是 Euglena 维护的企业微信智能机器人 Go SDK fork，基于官方 [wecomteam/aibot-node-sdk](https://github.com/WecomTeam/aibot-node-sdk) 的 Go 语言复刻版本演进。Euglena fork 优先保障 Fresh Loop/E3 长连接运行时需要的主动发送、模板卡片、媒体上传和审计友好 API。
 
 ## 特性
 
@@ -13,7 +13,7 @@
 - **消息分发** — 自动解析消息类型并触发对应事件（text / image / mixed / voice / file）
 - **流式回复** — 内置流式回复方法，支持 Markdown 和图文混排
 - **模板卡片** — 支持回复模板卡片消息、流式+卡片组合回复、更新卡片
-- **主动推送** — 支持向指定会话主动发送 Markdown 或模板卡片消息，无需依赖回调帧
+- **主动推送** — 支持向指定会话主动发送 Markdown、模板卡片和上传素材后的媒体消息，无需依赖回调帧
 - **事件回调** — 支持进入会话、模板卡片按钮点击、用户反馈等事件
 - **串行回复队列** — 同一 req_id 的回复消息串行发送，自动等待回执
 - **文件下载解密** — 内置 AES-256-CBC 文件解密，每个图片/文件消息自带独立的 aeskey
@@ -22,7 +22,7 @@
 ## 安装
 
 ```bash
-go get github.com/go-sphere/wecom-aibot-go-sdk
+go get github.com/euglena-inc/wecom-aibot-go-sdk
 ```
 
 ## 快速开始
@@ -36,7 +36,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	aibot "github.com/go-sphere/wecom-aibot-go-sdk/aibot"
+	aibot "github.com/euglena-inc/wecom-aibot-go-sdk/aibot"
 )
 
 func main() {
@@ -147,9 +147,14 @@ client := aibot.NewWSClient(options aibot.WSClientOptions)
 | `ReplyStreamNonBlocking(frame, streamID, content, finish, msgItem, feedback)` | 非阻塞流式回复：若上一条同 reqId 未 ack 则跳过 | `(*WsFrame, error)` |
 | `HasPendingReplyAck(frame)` | 检查指定帧是否有未完成的 ack | `bool` |
 | `UpdateTemplateCard(frame, templateCard, userIDs)` | 更新模板卡片（响应 template_card_event），需在收到事件 5s 内调用 | `(*WsFrame, error)` |
-| `SendMessage(chatID, body)` | 主动发送消息（支持 Markdown 或模板卡片），无需依赖回调帧 | `(*WsFrame, error)` |
+| `SendMessage(chatID, body)` | 主动发送消息（支持 Markdown、模板卡片和媒体消息），无需依赖回调帧 | `(*WsFrame, error)` |
 | `SendMarkdown(chatID, content)` | 主动发送 Markdown 消息 | `(*WsFrame, error)` |
 | `SendTemplateCard(chatID, templateCard)` | 主动发送模板卡片消息 | `(*WsFrame, error)` |
+| `UploadMedia(fileBuffer, options)` | 上传临时素材，返回 `media_id` | `(*UploadMediaFinishResult, error)` |
+| `SendMediaMessage(chatID, mediaType, mediaID, videoOptions)` | 主动发送 file/image/voice/video 媒体消息 | `(*WsFrame, error)` |
+| `NewSendMarkdownMsgBody(content)` | 构建主动发送 Markdown body，可传给 `SendMessage` | `SendMarkdownMsgBody` |
+| `NewSendTemplateCardMsgBody(templateCard)` | 构建主动发送模板卡片 body，可传给 `SendMessage` | `SendTemplateCardMsgBody` |
+| `NewSendMediaMsgBody(mediaType, mediaID, videoOptions)` | 构建媒体消息 body，可用于主动发送或被动回复 | `SendMediaMsgBody` |
 | `DownloadFile(fileURL, aesKey)` | 下载文件并使用 AES 密钥解密，返回文件内容和文件名 | `([]byte, string, error)` |
 
 ### ReplyStream 详细说明
@@ -194,6 +199,20 @@ templateCard := aibot.TemplateCard{
 	},
 }
 client.SendTemplateCard("userid_or_chatid", templateCard)
+
+// 上传并发送图片/文件/语音/视频
+media, err := client.UploadMedia(fileBytes, aibot.UploadMediaOptions{
+	Type:     aibot.WeComMediaTypeImage,
+	Filename: "close-photo.jpg",
+})
+if err != nil {
+	return err
+}
+client.SendMediaMessage("userid_or_chatid", media.Type, media.MediaID, nil)
+
+// 也可以先构建 body，再用 SendMessage 统一发送
+body := aibot.NewSendMarkdownMsgBody("## 收档提醒")
+client.SendMessage("userid_or_chatid", body)
 ```
 
 ### DownloadFile 使用示例
@@ -350,7 +369,7 @@ SDK 内置了独立的企业微信消息加解密模块，支持 AES-256-CBC 加
 ```go
 import (
 	"errors"
-	aibot "github.com/go-sphere/wecom-aibot-go-sdk/aibot"
+	aibot "github.com/euglena-inc/wecom-aibot-go-sdk/aibot"
 )
 
 // 创建实例
@@ -410,7 +429,7 @@ wecom-aibot-go-sdk/
 
 ```bash
 # 克隆项目
-git clone https://github.com/go-sphere/wecom-aibot-go-sdk.git
+git clone https://github.com/euglena-inc/wecom-aibot-go-sdk.git
 cd wecom-aibot-go-sdk
 
 # 运行示例

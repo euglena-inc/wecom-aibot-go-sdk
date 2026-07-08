@@ -567,30 +567,39 @@ func (c *WSClient) SendMessage(chatID string, body interface{}) (*WsFrame, error
 	return c.wsManager.SendReply(reqID, bodyMap, WsCmd.SEND_MSG)
 }
 
-// SendMarkdown 发送 Markdown 消息
-func (c *WSClient) SendMarkdown(chatID, content string) (*WsFrame, error) {
+// NewSendMarkdownMsgBody 构建主动发送 Markdown 消息体。
+//
+// 返回值可直接传给 SendMessage；SendMessage 会补充 chatid。
+func NewSendMarkdownMsgBody(content string) SendMarkdownMsgBody {
 	body := SendMarkdownMsgBody{
-		ChatID: chatID,
 		Markdown: struct {
 			Content string `json:"content"`
 		}{
 			Content: content,
 		},
 	}
-	body.MsgType = "markdown"
+	body.MsgType = string(MessageTypeMarkdown)
+	return body
+}
 
-	return c.SendMessage(chatID, body)
+// SendMarkdown 发送 Markdown 消息
+func (c *WSClient) SendMarkdown(chatID, content string) (*WsFrame, error) {
+	return c.SendMessage(chatID, NewSendMarkdownMsgBody(content))
+}
+
+// NewSendTemplateCardMsgBody 构建主动发送模板卡片消息体。
+//
+// 返回值可直接传给 SendMessage；SendMessage 会补充 chatid。
+func NewSendTemplateCardMsgBody(templateCard TemplateCard) SendTemplateCardMsgBody {
+	return SendTemplateCardMsgBody{
+		MsgType:      string(MessageTypeTemplateCard),
+		TemplateCard: templateCard,
+	}
 }
 
 // SendTemplateCard 发送模板卡片消息
 func (c *WSClient) SendTemplateCard(chatID string, templateCard TemplateCard) (*WsFrame, error) {
-	body := SendTemplateCardMsgBody{
-		ChatID:       chatID,
-		TemplateCard: templateCard,
-	}
-	body.MsgType = "template_card"
-
-	return c.SendMessage(chatID, body)
+	return c.SendMessage(chatID, NewSendTemplateCardMsgBody(templateCard))
 }
 
 // ============================================================================
@@ -699,12 +708,13 @@ func (c *WSClient) ReplyMedia(frame *WsFrame, mediaType WeComMediaType, mediaID 
 //
 // 通过 aibot_send_msg 主动推送通道发送媒体消息
 func (c *WSClient) SendMediaMessage(chatID string, mediaType WeComMediaType, mediaID string, videoOptions *VideoMediaContent) (*WsFrame, error) {
-	body := buildMediaMsgBody(mediaType, mediaID, videoOptions)
-	return c.SendMessage(chatID, body)
+	return c.SendMessage(chatID, NewSendMediaMsgBody(mediaType, mediaID, videoOptions))
 }
 
-// buildMediaMsgBody 构建媒体消息体
-func buildMediaMsgBody(mediaType WeComMediaType, mediaID string, videoOptions *VideoMediaContent) SendMediaMsgBody {
+// NewSendMediaMsgBody 构建主动发送或被动回复媒体消息体。
+//
+// mediaType 支持 file、image、voice、video；videoOptions 只在 mediaType=video 时使用。
+func NewSendMediaMsgBody(mediaType WeComMediaType, mediaID string, videoOptions *VideoMediaContent) SendMediaMsgBody {
 	body := SendMediaMsgBody{
 		MsgType: mediaType,
 	}
@@ -724,6 +734,13 @@ func buildMediaMsgBody(mediaType WeComMediaType, mediaID string, videoOptions *V
 		body.Video = vc
 	}
 	return body
+}
+
+// buildMediaMsgBody 构建媒体消息体。
+//
+// Deprecated: use NewSendMediaMsgBody.
+func buildMediaMsgBody(mediaType WeComMediaType, mediaID string, videoOptions *VideoMediaContent) SendMediaMsgBody {
+	return NewSendMediaMsgBody(mediaType, mediaID, videoOptions)
 }
 
 // ============================================================================

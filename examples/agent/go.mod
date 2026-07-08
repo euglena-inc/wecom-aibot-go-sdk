@@ -1,12 +1,12 @@
-module github.com/go-sphere/wecom-aibot-go-sdk/aibot/example/agent
+module github.com/euglena-inc/wecom-aibot-go-sdk/aibot/example/agent
 
 go 1.26.1
 
-replace github.com/go-sphere/wecom-aibot-go-sdk => ../..
+replace github.com/euglena-inc/wecom-aibot-go-sdk => ../..
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.27.1
-	github.com/go-sphere/wecom-aibot-go-sdk v0.0.0-20260325085413-090d8d7b0477
+	github.com/euglena-inc/wecom-aibot-go-sdk v0.0.0-20260325085413-090d8d7b0477
 )
 
 require (
